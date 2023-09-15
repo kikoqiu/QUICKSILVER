@@ -57,7 +57,7 @@ static float current_kp[PID_SIZE] = {0, 0, 0};
 static float current_ki[PID_SIZE] = {0, 0, 0};
 static float current_kd[PID_SIZE] = {0, 0, 0};
 
-static float ierror[PID_SIZE] = {0, 0, 0};
+static double ierror[PID_SIZE] = {0, 0, 0};
 
 static float v_compensation = 1.00;
 static float tda_compensation = 1.00;
@@ -184,10 +184,10 @@ static inline void pid(uint8_t x) {
   // in level mode or horizon but not racemode and while on the ground...
   if ((rx_aux_on(AUX_LEVELMODE)) && (!rx_aux_on(AUX_RACEMODE)) && ((flags.on_ground) || (flags.in_air == 0))) {
     // wind down the integral error
-    ierror[x] *= 0.98f;
+    ierror[x] *= (double)0.98f;
   } else if (flags.on_ground) {
     // in acro mode - only wind down integral when idle up is off and throttle is 0
-    ierror[x] *= 0.98f;
+    ierror[x] *= (double)0.98f;
   }
 
   static vec3_t pid_output = {.roll = 0, .pitch = 0, .yaw = 0};
@@ -196,12 +196,12 @@ static inline void pid(uint8_t x) {
   // assuming similar time intervals
   const float *integral_limit = target.brushless ? integral_limit_brushless : integral_limit_brushed;
   const float iterm_windup = pid_compute_iterm_windup(x, pid_output.axis[x]);
-  ierror[x] = ierror[x] + 0.166666f * (lasterror2[x] + 4 * lasterror[x] + state.error.axis[x]) * current_ki[x] * iterm_windup * state.looptime;
-  ierror[x] = constrain(ierror[x], -integral_limit[x], integral_limit[x]);
+  ierror[x] = ierror[x] + (double)(0.166666f * (lasterror2[x] + 4 * lasterror[x] + state.error.axis[x]) * current_ki[x] * iterm_windup * state.looptime);
+  ierror[x] = constrain(ierror[x], (double)-integral_limit[x], (double)integral_limit[x]);
   lasterror2[x] = lasterror[x];
   lasterror[x] = state.error.axis[x];
 
-  state.pid_i_term.axis[x] = ierror[x];
+  state.pid_i_term.axis[x] = (float)ierror[x];
 
   // D term
   const uint8_t stck_boost_profile = rx_aux_on(AUX_STICK_BOOST_PROFILE) ? STICK_PROFILE_ON : STICK_PROFILE_OFF;
@@ -233,6 +233,30 @@ static inline void pid(uint8_t x) {
   state.pidoutput.axis[x] = constrain(state.pidoutput.axis[x], -out_limit[x], out_limit[x]);
 }
 
+void rotate_with_sinv(float *vec,const float sinv[3]) {
+  const float x=vec[0],y=vec[1],z=vec[2];
+  float rst[3]={
+    x - y* sinv[2] + z* sinv[1],
+    sinv[2]*x + y - z*sinv[0],
+    sinv[0]*y - sinv[1]*x + z
+  };
+  for(int i=0;i<3;++i){
+	  vec[i]=rst[i];
+  }
+}
+
+void rotate_with_sinv_double(double *vec,const double sinv[3]) {
+  const double x=vec[0],y=vec[1],z=vec[2];
+  double rst[3]={
+    x - y* sinv[2] + z* sinv[1],
+    sinv[2]*x + y - z*sinv[0],
+    sinv[0]*y - sinv[1]*x + z
+  };
+  for(int i=0;i<3;++i){
+	  vec[i]=rst[i];
+  }
+}
+
 void pid_calc() {
   // rotates errors, originally by joelucid
   const float gyro_delta_angle[3] = {
@@ -241,6 +265,7 @@ void pid_calc() {
       state.gyro.axis[2] * state.looptime,
   };
 
+/*
   // rotation around x axis:
   ierror[1] -= ierror[2] * gyro_delta_angle[0];
   ierror[2] += ierror[1] * gyro_delta_angle[0];
@@ -252,7 +277,28 @@ void pid_calc() {
   // rotation around z axis:
   ierror[0] -= ierror[1] * gyro_delta_angle[2];
   ierror[1] += ierror[0] * gyro_delta_angle[2];
+*/
 
+  const double sinvd[3] = {
+      sin(gyro_delta_angle[0]),
+      sin(gyro_delta_angle[1]),
+      sin(gyro_delta_angle[2])
+  };
+
+  const float sinv[3] = {
+      sinvd[0],
+      sinvd[1],
+      sinvd[2]
+  };
+
+  rotate_with_sinv_double(ierror,sinvd);
+  //rotate_with_sinv_double(lasterror, sinvd);
+  //rotate_with_sinv_double(lasterror2, sinvd);
+
+  //rotate_with_sinv(ierror, sinv);
+  rotate_with_sinv(lasterror, sinv);
+  rotate_with_sinv(lasterror2, sinv);
+  rotate_with_sinv(lastrate, sinv);
   pid(0);
   pid(1);
   pid(2);
