@@ -150,21 +150,18 @@ static bool test_gyro_move(const gyro_data_t *last_data, const gyro_data_t *data
 
 // returns true if it's already still, i.e. no move since the first loops
 static bool sixaxis_wait_for_still(uint32_t timeout) {
-  const uint32_t start = time_micros();
-  uint32_t loop_counter = 0;
-
-  // turn on led
   uint8_t move_counter = 15;
+  uint32_t loop_counter = 0;
 
   gyro_data_t last_data;
   memset(&last_data, 0, sizeof(gyro_data_t));
 
+  const uint32_t start = time_micros();
   uint32_t now = start;
   while (now - start < timeout && move_counter > 0) {
     const gyro_data_t data = gyro_spi_read();
 
-    bool did_move = test_gyro_move(&last_data, &data);
-
+    const bool did_move = test_gyro_move(&last_data, &data);
     if (did_move) {
       move_counter = 15;
     } else {
@@ -197,7 +194,7 @@ void sixaxis_gyro_cal() {
   led_pwm(brightness, 1000);
 
   gyro_data_t last_data = gyro_spi_read();
-  ;
+
   uint32_t start = time_micros();
   uint32_t now = start;
   int32_t cal_counter = CAL_TIME / 1000;
