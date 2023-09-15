@@ -13,7 +13,7 @@ typedef enum {
   PIN_NONE,
 #include "gpio_pins.in"
   PINS_MAX,
-} __attribute__((__packed__))gpio_pins_t;
+} __attribute__((__packed__)) gpio_pins_t;
 #undef GPIO_PIN
 #undef GPIO_AF
 
@@ -23,7 +23,7 @@ typedef enum {
   MOTOR_PIN2,
   MOTOR_PIN3,
   MOTOR_PIN_MAX
-}__attribute__((__packed__)) motor_pin_t;
+} __attribute__((__packed__)) motor_pin_t;
 
 typedef enum {
   SPI_PORT_INVALID,
@@ -34,7 +34,7 @@ typedef enum {
   SPI_PORT5,
   SPI_PORT6,
   SPI_PORT_MAX,
-} __attribute__((__packed__))spi_ports_t;
+} __attribute__((__packed__)) spi_ports_t;
 
 typedef enum {
   SERIAL_PORT_INVALID,
@@ -163,6 +163,9 @@ typedef struct {
   target_invert_pin_t sdcard_detect;
   target_invert_pin_t buzzer;
   gpio_pins_t motor_pins[MOTOR_PIN_MAX];
+
+  uint16_t vbat_scale;
+  uint16_t ibat_scale;
 } target_t;
 
 #define TARGET_MEMBERS                                                           \
@@ -184,7 +187,9 @@ typedef struct {
   MEMBER(ibat, gpio_pins_t)                                                      \
   MEMBER(sdcard_detect, target_invert_pin_t)                                     \
   MEMBER(buzzer, target_invert_pin_t)                                            \
-  ARRAY_MEMBER(motor_pins, MOTOR_PIN_MAX, gpio_pins_t)
+  ARRAY_MEMBER(motor_pins, MOTOR_PIN_MAX, gpio_pins_t)                           \
+  MEMBER(vbat_scale, uint16)                                                     \
+  MEMBER(ibat_scale, uint16)
 
 typedef enum {
   FEATURE_BRUSHLESS = (1 << 1),

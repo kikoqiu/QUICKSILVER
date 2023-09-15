@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "core/debug.h"
 #include "core/flash.h"
 #include "core/looptime.h"
 #include "driver/motor.h"
@@ -318,16 +319,18 @@ static void msp_process_serial_cmd(msp_t *msp, msp_magic_t magic, uint16_t cmd, 
   }
 
   case MSP_VTX_CONFIG: {
-    if (msp->device == MSP_DEVICE_VTX && vtx_settings.power_table.levels != 0) {
-      msp_vtx_detected = 1;
-    }
     msp_vtx_send_config_reply(msp, magic);
     break;
   }
 
   case MSP_SET_VTX_CONFIG: {
-    vtx_settings_t *settings = msp->device == MSP_DEVICE_VTX ? &msp_vtx_settings : &vtx_settings;
+    vtx_settings_t *settings = &msp_vtx_settings;
     if (msp->device != MSP_DEVICE_VTX) {
+      // store non-msp settings in temporary;
+      static vtx_settings_t _vtx_settings;
+      _vtx_settings = vtx_settings;
+      settings = &_vtx_settings;
+
       settings->magic = VTX_SETTINGS_MAGIC;
     }
 
@@ -381,6 +384,10 @@ static void msp_process_serial_cmd(msp_t *msp, msp_magic_t magic, uint16_t cmd, 
       }
 
       remaining -= 4;
+    }
+
+    if (msp->device != MSP_DEVICE_VTX) {
+      vtx_set(settings);
     }
 
     msp_send_reply(msp, magic, cmd, NULL, 0);
@@ -438,42 +445,38 @@ static void msp_process_serial_cmd(msp_t *msp, msp_magic_t magic, uint16_t cmd, 
   }
 
   case MSP_VTXTABLE_POWERLEVEL: {
-    vtx_settings_t *settings = msp->device == MSP_DEVICE_VTX ? &msp_vtx_settings : &vtx_settings;
-
     const uint8_t level = payload[0];
     if (level <= 0 || level > VTX_POWER_LEVEL_MAX) {
       msp_send_error(msp, magic, cmd);
       break;
     }
 
-    const uint16_t power = settings->power_table.values[level - 1];
+    const uint16_t power = vtx_settings.power_table.values[level - 1];
 
     uint8_t buf[7];
     buf[0] = level;
     buf[1] = power & 0xFF;
     buf[2] = power >> 8;
     buf[3] = 3;
-    memcpy(buf + 4, settings->power_table.labels[level - 1], 3);
+    memcpy(buf + 4, vtx_settings.power_table.labels[level - 1], 3);
 
     msp_send_reply(msp, magic, cmd, buf, 7);
     break;
   }
 
   case MSP_SET_VTXTABLE_POWERLEVEL: {
-    vtx_settings_t *settings = msp->device == MSP_DEVICE_VTX ? &msp_vtx_settings : &vtx_settings;
-
     const uint8_t level = payload[0];
     if (level <= 0 || level > VTX_POWER_LEVEL_MAX) {
       msp_send_error(msp, magic, cmd);
       break;
     }
 
-    settings->power_table.levels = max(level, settings->power_table.levels);
-    settings->power_table.values[level - 1] = payload[2] << 8 | payload[1];
+    vtx_settings.power_table.levels = max(level, vtx_settings.power_table.levels);
+    vtx_settings.power_table.values[level - 1] = payload[2] << 8 | payload[1];
 
     const uint8_t label_len = payload[3];
     for (uint8_t i = 0; i < 3; i++) {
-      settings->power_table.labels[level - 1][i] = i >= label_len ? 0 : payload[4 + i];
+      vtx_settings.power_table.labels[level - 1][i] = i >= label_len ? 0 : payload[4 + i];
     }
     msp_send_reply(msp, magic, cmd, NULL, 0);
     break;
