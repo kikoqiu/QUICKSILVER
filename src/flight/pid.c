@@ -285,20 +285,21 @@ void pid_calc() {
       sin(gyro_delta_angle[2])
   };
 
-  const float sinv[3] = {
+  /*const float sinv[3] = {
       sinvd[0],
       sinvd[1],
       sinvd[2]
-  };
+  };*/
 
   rotate_with_sinv_double(ierror,sinvd);
   //rotate_with_sinv_double(lasterror, sinvd);
   //rotate_with_sinv_double(lasterror2, sinvd);
 
   //rotate_with_sinv(ierror, sinv);
-  rotate_with_sinv(lasterror, sinv);
-  rotate_with_sinv(lasterror2, sinv);
-  rotate_with_sinv(lastrate, sinv);
+
+  //rotate_with_sinv(lasterror, sinv);
+  //rotate_with_sinv(lasterror2, sinv);
+  //rotate_with_sinv(lastrate, sinv);
   pid(0);
   pid(1);
   pid(2);
