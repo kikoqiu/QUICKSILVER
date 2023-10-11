@@ -20,6 +20,7 @@ typedef enum {
 
   STATE_ERASE_HEADER,
   STATE_WRITE_HEADER,
+  STATE_WRITE_HEADER1,
 } blackbox_device_state_t;
 
 #ifdef USE_DATA_FLASH
@@ -38,6 +39,8 @@ blackbox_device_result_t blackbox_device_flash_update() {
   static uint32_t write_size = PAGE_SIZE;
 
   const uint32_t to_write = ring_buffer_available(&blackbox_encode_buffer);
+
+  static uint32_t header_write_offset = 0;
 
 flash_do_more:
   switch (state) {
@@ -137,8 +140,26 @@ flash_do_more:
     if (!m25p16_is_ready()) {
       return BLACKBOX_DEVICE_WAIT;
     }
-    if (m25p16_page_program(0x0, (uint8_t *)&blackbox_device_header, sizeof(blackbox_device_header_t))) {
-      state = STATE_IDLE;
+    header_write_offset=0;
+    state = STATE_WRITE_HEADER1;
+    goto flash_do_more;
+  }
+  case STATE_WRITE_HEADER1: {
+    if (!m25p16_is_ready()) {
+      return BLACKBOX_DEVICE_WAIT;
+    }
+    int header_to_write = sizeof(blackbox_device_header_t) - header_write_offset;
+    if(header_to_write > PAGE_SIZE){
+      header_to_write = PAGE_SIZE;
+    }
+    if (m25p16_page_program(0x0, (uint8_t *)&blackbox_device_header + header_write_offset, header_to_write)) {
+      header_write_offset += header_to_write;
+      if(header_write_offset < sizeof(blackbox_device_header_t)){
+        state = STATE_WRITE_HEADER1;
+      }else{
+        header_write_offset = 0;
+        state = STATE_IDLE;
+      }
     }
     return BLACKBOX_DEVICE_WAIT;
   }

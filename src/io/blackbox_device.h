@@ -56,7 +56,7 @@ typedef struct {
   MEMBER(start, uint32)              \
   MEMBER(size, uint32)
 
-#define BLACKBOX_DEVICE_MAX_FILES 10
+#define BLACKBOX_DEVICE_MAX_FILES 25
 
 // sizeof(blackbox_device_header_t) cannot exceed PAGE_SIZE eg 256byte
 typedef struct {
