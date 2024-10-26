@@ -114,7 +114,7 @@ vtx_update_result_t serial_msp_vtx_update() {
 
     in_progress = true;
 
-    msp_status_t status = msp_process_serial(msp_vtx, data);
+    msp_status_t status = msp_process_serial(msp_vtx, 0, data);
     switch (status) {
     case MSP_ERROR:
     case MSP_EOF:

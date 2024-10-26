@@ -525,7 +525,7 @@ static void process_osd(quic_t *quic, cbor_value_t *dec) {
   };
 }
 
-static void process_serial(quic_t *quic, cbor_value_t *dec) {
+static void process_serial(configurator_port *cport, quic_t *quic, cbor_value_t *dec) {
   cbor_result_t res = CBOR_OK;
 
   cbor_value_t enc;
@@ -556,7 +556,7 @@ static void process_serial(quic_t *quic, cbor_value_t *dec) {
 
     quic_send(quic, QUIC_CMD_SERIAL, QUIC_FLAG_NONE, encode_buffer, cbor_encoder_len(&enc));
 
-    usb_serial_passthrough(port, baudrate, stop_bits, half_duplex);
+    usb_serial_passthrough(cport, port, baudrate, stop_bits, half_duplex);
     break;
   }
 
@@ -566,7 +566,7 @@ static void process_serial(quic_t *quic, cbor_value_t *dec) {
   }
 }
 
-bool quic_process(quic_t *quic, uint8_t *data, uint32_t size) {
+bool quic_process(configurator_port* cport, quic_t *quic, uint8_t *data, uint32_t size) {
   if (size < 4) {
     return false;
   }
@@ -620,7 +620,7 @@ bool quic_process(quic_t *quic, uint8_t *data, uint32_t size) {
     quic_send(quic, QUIC_CMD_CAL_STICKS, QUIC_FLAG_NONE, NULL, 0);
     break;
   case QUIC_CMD_SERIAL:
-    process_serial(quic, &dec);
+    process_serial(cport, quic, &dec);
     break;
   default:
     quic_errorf(QUIC_CMD_INVALID, "INVALID CMD %d", cmd);

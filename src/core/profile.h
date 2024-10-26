@@ -271,6 +271,7 @@ typedef struct {
   serial_ports_t rx;
   serial_ports_t smart_audio;
   serial_ports_t hdzero;
+  serial_ports_t quic;
 } profile_serial_t;
 
 #define SERIAL_MEMBERS           \
@@ -278,6 +279,7 @@ typedef struct {
   MEMBER(rx, uint8)              \
   MEMBER(smart_audio, uint8)     \
   MEMBER(hdzero, uint8)          \
+  MEMBER(quic, uint8)            \
   END_STRUCT()
 
 typedef struct {

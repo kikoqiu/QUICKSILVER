@@ -62,7 +62,7 @@ static void msp_write_uint32(uint8_t *data, uint32_t val) {
   data[3] = val >> 24;
 }
 
-static void msp_process_serial_cmd(msp_t *msp, msp_magic_t magic, uint16_t cmd, uint8_t *payload, uint16_t size) {
+static void msp_process_serial_cmd(msp_t *msp,configurator_port* conf_port, msp_magic_t magic, uint16_t cmd, uint8_t *payload, uint16_t size) {
   switch (cmd) {
   case MSP_API_VERSION: {
     uint8_t data[3] = {
@@ -245,14 +245,16 @@ static void msp_process_serial_cmd(msp_t *msp, msp_magic_t magic, uint16_t cmd, 
 
     switch (mode) {
     case MSP_PASSTHROUGH_SERIAL_ID: {
-      uint8_t data[1] = {1};
-      msp_send_reply(msp, magic, cmd, data, 1);
+      if(conf_port){
+        uint8_t data[1] = {1};
+        msp_send_reply(msp, magic, cmd, data, 1);
 
-      if (arg == serial_vtx.config.port) {
-        if (vtx_settings.protocol == VTX_PROTOCOL_TRAMP) {
-          usb_serial_passthrough(arg, 9600, 1, true);
-        } else {
-          usb_serial_passthrough(arg, 4800, 2, true);
+        if (arg == serial_vtx.config.port) {
+          if (vtx_settings.protocol == VTX_PROTOCOL_TRAMP) {
+            usb_serial_passthrough(conf_port, arg, 9600, 1, true);
+          } else {
+            usb_serial_passthrough(conf_port, arg, 4800, 2, true);
+          }
         }
       }
 
@@ -261,13 +263,15 @@ static void msp_process_serial_cmd(msp_t *msp, msp_magic_t magic, uint16_t cmd, 
 
     default:
     case MSP_PASSTHROUGH_ESC_4WAY: {
-      uint8_t data[1] = {MOTOR_PIN_MAX};
-      msp_send_reply(msp, magic, cmd, data, 1);
+      if(conf_port){
+        uint8_t data[1] = {MOTOR_PIN_MAX};
+        msp_send_reply(msp, magic, cmd, data, 1);
 
-      motor_test.active = 0;
+        motor_test.active = 0;
 
-      serial_4way_init();
-      serial_4way_process();
+        serial_4way_init();
+        serial_4way_process(conf_port);
+      }
       break;
     }
     }
@@ -280,7 +284,7 @@ static void msp_process_serial_cmd(msp_t *msp, msp_magic_t magic, uint16_t cmd, 
         .priv_data = msp,
         .send = msp_quic_send,
     };
-    quic_process(&quic, payload, size);
+    quic_process(conf_port, &quic, payload, size);
     break;
   }
 
@@ -520,7 +524,7 @@ static void msp_process_serial_cmd(msp_t *msp, msp_magic_t magic, uint16_t cmd, 
   }
 }
 
-msp_status_t msp_process_serial(msp_t *msp, uint8_t data) {
+msp_status_t msp_process_serial(msp_t *msp, configurator_port* conf_port, uint8_t data) {
   if (msp->buffer_offset >= msp->buffer_size) {
     msp->buffer_offset = 0;
     return MSP_ERROR;
@@ -561,7 +565,7 @@ msp_status_t msp_process_serial(msp_t *msp, uint8_t data) {
       return MSP_ERROR;
     }
 
-    msp_process_serial_cmd(msp, MSP1_MAGIC, cmd, msp->buffer + MSP_HEADER_LEN, size);
+    msp_process_serial_cmd(msp, conf_port, MSP1_MAGIC, cmd, msp->buffer + MSP_HEADER_LEN, size);
     msp->buffer_offset = 0;
     return MSP_SUCCESS;
   }
@@ -585,7 +589,7 @@ msp_status_t msp_process_serial(msp_t *msp, uint8_t data) {
       return MSP_ERROR;
     }
 
-    msp_process_serial_cmd(msp, MSP2_MAGIC, cmd, msp->buffer + MSP2_HEADER_LEN, size);
+    msp_process_serial_cmd(msp,conf_port, MSP2_MAGIC, cmd, msp->buffer + MSP2_HEADER_LEN, size);
     msp->buffer_offset = 0;
     return MSP_SUCCESS;
   }
@@ -649,6 +653,6 @@ msp_status_t msp_process_telemetry(msp_t *msp, uint8_t *data, uint32_t len) {
     return MSP_EOF;
   }
 
-  msp_process_serial_cmd(msp, MSP1_MAGIC, last_cmd, msp->buffer, last_size);
+  msp_process_serial_cmd(msp, 0, MSP1_MAGIC, last_cmd, msp->buffer, last_size);
   return MSP_SUCCESS;
 }

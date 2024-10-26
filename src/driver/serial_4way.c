@@ -83,25 +83,25 @@ static uint32_t device_page_multiplier() {
   }
 }
 
-static uint8_t read_byte() {
+static uint8_t read_byte(configurator_port *cport) {
   uint8_t byte = 0;
-  while (usb_serial_read(&byte, 1) == 0)
+  while (cport->recv(&byte, 1) == 0)
     ;
   return byte;
 }
 
-static uint8_t read_byte_crc(uint16_t *crc) {
-  uint8_t b = read_byte();
+static uint8_t read_byte_crc(configurator_port *cport, uint16_t *crc) {
+  uint8_t b = read_byte(cport);
   *crc = _crc_xmodem_update(*crc, b);
   return b;
 }
 
-static void write_byte(uint8_t b) {
-  usb_serial_write(&b, 1);
+static void write_byte(configurator_port *cport, uint8_t b) {
+  cport->send(&b, 1);
 }
 
-static void write_byte_crc(uint16_t *crc, uint8_t b) {
-  write_byte(b);
+static void write_byte_crc(configurator_port *cport, uint16_t *crc, uint8_t b) {
+  write_byte(cport, b);
   *crc = _crc_xmodem_update(*crc, b);
 }
 
@@ -548,7 +548,7 @@ serial_esc4way_ack_t serial_4way_write_settings(blheli_settings_t *settings, uin
 // ESC + CMD PARAM_LEN [PARAM (if len > 0)] CRC16_Hi CRC16_Lo
 // Return
 // ESC CMD PARAM_LEN [PARAM (if len > 0)] + ACK (uint8_t OK or ERR) + CRC16_Hi CRC16_Lo
-void serial_4way_process() {
+void serial_4way_process(configurator_port *conf_port) {
   uint8_t input_buffer[256];
   uint8_t output_buffer[256];
   uint8_t output_size = 0;
@@ -565,21 +565,21 @@ void serial_4way_process() {
     do {
       RX_LED_ON;
       crc_in = 0;
-      magic = read_byte_crc(&crc_in);
+      magic = read_byte_crc(conf_port, &crc_in);
       RX_LED_OFF;
     } while (magic != ESC4WAY_LOCAL_ESCAPE);
 
     RX_LED_ON;
 
-    const uint8_t cmd = read_byte_crc(&crc_in);
-    const uint16_t addr = (read_byte_crc(&crc_in) << 8) | (uint16_t)(read_byte_crc(&crc_in));
+    const uint8_t cmd = read_byte_crc(conf_port, &crc_in);
+    const uint16_t addr = (read_byte_crc(conf_port, &crc_in) << 8) | (uint16_t)(read_byte_crc(conf_port, &crc_in));
 
-    const uint8_t size = read_byte_crc(&crc_in);
+    const uint8_t size = read_byte_crc(conf_port, &crc_in);
     for (uint16_t i = 0; i < (size == 0 ? 256 : size); i++) {
-      input_buffer[i] = read_byte_crc(&crc_in);
+      input_buffer[i] = read_byte_crc(conf_port, &crc_in);
     }
 
-    const uint16_t their_crc = (uint16_t)(read_byte() << 8) | (uint16_t)(read_byte());
+    const uint16_t their_crc = (uint16_t)(read_byte(conf_port) << 8) | (uint16_t)(read_byte(conf_port));
 
     memset(output_buffer, 0, 256);
 
@@ -595,19 +595,19 @@ void serial_4way_process() {
 
     crc_out = 0;
 
-    write_byte_crc(&crc_out, ESC4WAY_REMOTE_ESCAPE);
-    write_byte_crc(&crc_out, cmd);
-    write_byte_crc(&crc_out, addr >> 8);
-    write_byte_crc(&crc_out, addr & 0xFF);
+    write_byte_crc(conf_port, &crc_out, ESC4WAY_REMOTE_ESCAPE);
+    write_byte_crc(conf_port, &crc_out, cmd);
+    write_byte_crc(conf_port, &crc_out, addr >> 8);
+    write_byte_crc(conf_port, &crc_out, addr & 0xFF);
 
-    write_byte_crc(&crc_out, output_size);
+    write_byte_crc(conf_port, &crc_out, output_size);
     for (uint16_t i = 0; i < (output_size == 0 ? 256 : output_size); i++) {
-      write_byte_crc(&crc_out, output_buffer[i]);
+      write_byte_crc(conf_port, &crc_out, output_buffer[i]);
     }
 
-    write_byte_crc(&crc_out, ack_out);
-    write_byte(crc_out >> 8);
-    write_byte(crc_out & 0xFF);
+    write_byte_crc(conf_port, &crc_out, ack_out);
+    write_byte(conf_port, crc_out >> 8);
+    write_byte(conf_port, crc_out & 0xFF);
 
     TX_LED_OFF;
     RX_LED_OFF;

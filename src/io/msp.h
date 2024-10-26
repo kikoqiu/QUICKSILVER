@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "usb_configurator.h"
 
 #define MSP_API_VERSION 1 // out message
 #define MSP_FC_VARIANT 2  // out message
@@ -99,5 +100,5 @@ typedef struct {
   msp_device_t device;
 } msp_t;
 
-msp_status_t msp_process_serial(msp_t *msp, uint8_t data);
+msp_status_t msp_process_serial(msp_t *msp, configurator_port* cport,  uint8_t data);
 msp_status_t msp_process_telemetry(msp_t *msp, uint8_t *data, uint32_t len);

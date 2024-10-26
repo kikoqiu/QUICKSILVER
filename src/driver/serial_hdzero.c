@@ -218,7 +218,7 @@ bool hdzero_is_ready() {
       break;
     }
 
-    msp_process_serial(&hdzero_msp, data);
+    msp_process_serial(&hdzero_msp, 0, data);
   }
 
   static bool was_detected = false;

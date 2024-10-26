@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "io/blackbox.h"
+#include "io/usb_configurator.h"
 
 #define QUIC_MAGIC '#'
 #define QUIC_HEADER_LEN 4
@@ -78,4 +79,4 @@ typedef struct {
 
 cbor_result_t quic_send_str(quic_t *quic, quic_command cmd, quic_flag flag, const char *str);
 
-bool quic_process(quic_t *quic, uint8_t *data, uint32_t size);
+bool quic_process(configurator_port* cport, quic_t *quic, uint8_t *data, uint32_t size);
