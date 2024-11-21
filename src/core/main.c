@@ -214,9 +214,8 @@ __attribute__((__used__)) int main() {
       flags.usb_active = 0;
       motor_test.active = 0;
     }
-    if(!flags.in_air){
-      serial_configurator();
-    }
+
+    serial_configurator();    
     
     perf_counter_end(PERF_COUNTER_TOTAL);
     perf_counter_update();

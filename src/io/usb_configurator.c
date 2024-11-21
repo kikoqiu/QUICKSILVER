@@ -298,6 +298,11 @@ static void serial_msp_send(msp_magic_t magic, uint8_t direction, uint16_t cmd, 
   msp_send(&serial_configurator_port, magic, direction,cmd,data,len);
 }
 
+inline static void looptime_auto_reset(){
+  if (!flags.arm_state){
+    looptime_reset();
+  }
+}
 
 static bool serial_quic_inited = false;
 // double promition in the following is intended
@@ -311,73 +316,92 @@ void serial_configurator() {
   if (!serial_quic_enabled)
     return;
 
-  uint32_t buffer_size = 1;
+
+  static uint32_t buffer_size;
   static uint8_t buffer[BUFFER_SIZE];
-
-  if (serial_read_bytes(&serial_quic_port, buffer, 1) != 1) {
-    return;
-  }
-
-  switch (buffer[0]) {
-  case USB_MAGIC_REBOOT:
-    //  The following bits will reboot to DFU upon receiving 'R' (which is sent by BF configurator)
-    system_reset_to_bootloader();
-    break;
-
-  case USB_MAGIC_SOFT_REBOOT:
-    system_reset();
-    break;
-
-  case USB_MAGIC_MSP: {
-    msp_t msp = {
-        .buffer = buffer,
-        .buffer_size = BUFFER_SIZE,
-        .buffer_offset = 1,
-        .send = serial_msp_send,
-        .device = MSP_DEVICE_FC,
-    };
+  static msp_t msp = {
+    .buffer = buffer,
+    .buffer_size = BUFFER_SIZE,
+    .buffer_offset = 0,
+    .send = serial_msp_send,
+    .device = MSP_DEVICE_FC,
+  };
+  static uint8_t current_mode=0;
 
 
-    uint8_t data = 0;
-    while (true) {
-      if (serial_read_bytes(&serial_quic_port, &data, 1) != 1) {
-        continue;
+  //int start_time = time_micros();
+  for(int i = 0 ;i < 100;++i){//max process 100 bytes
+    //int diff = time_micros() - start_time;
+    uint8_t data_byte;
+    if (serial_read_bytes(&serial_quic_port, &data_byte, 1) != 1) {
+      looptime_auto_reset();
+      return;
+    }
+
+    switch (current_mode) {
+    case 0:
+      {
+          switch (data_byte) {
+          case USB_MAGIC_REBOOT:
+            //  The following bits will reboot to DFU upon receiving 'R' (which is sent by BF configurator)
+            system_reset_to_bootloader();
+            looptime_auto_reset();
+            return;//only process one command
+            break;
+          case USB_MAGIC_SOFT_REBOOT:
+            system_reset();
+            looptime_auto_reset();
+            return;//only process one command
+            break;
+          case USB_MAGIC_MSP:
+            buffer[0] = data_byte;
+            current_mode = data_byte;
+            msp.buffer_offset = 1;
+            break;
+          case USB_MAGIC_QUIC:
+            buffer[0] = data_byte;
+            current_mode = data_byte;
+            buffer_size = 1;
+            break;
+          default:
+            //do nothing
+            break;
+          }
       }
-
-      msp_status_t status = msp_process_serial(&msp, &serial_configurator_port, data);
-      if (status != MSP_EOF) {
+      break;
+    case USB_MAGIC_MSP: {
+      msp_status_t status = msp_process_serial(&msp, &serial_configurator_port, data_byte);
+      if(status != MSP_EOF){
+        current_mode = 0;
+        msp.buffer_offset = 0;
+        looptime_auto_reset();
+        return;//only process one command
+      }
+      break;
+    }
+    case USB_MAGIC_QUIC: {      
+      buffer[buffer_size++] = data_byte;
+      if (quic_process(&serial_configurator_port, &serial_quic, buffer, buffer_size)) {
+        current_mode = 0;
+        buffer_size = 0;
+        looptime_auto_reset();
+        return;//only process one command
         break;
       }
-    }
-    break;
-  }
-  case USB_MAGIC_QUIC: {
-    int lastReadTime = time_micros();
-    uint8_t data = 0;
-    while (true) {
       if (buffer_size == BUFFER_SIZE) {
         quic_send_str(&serial_quic, QUIC_CMD_INVALID, QUIC_FLAG_ERROR, "EOF");
+        current_mode = 0;
+        buffer_size = 0;
+        looptime_auto_reset();
+        return;//only process one command
         break;
       }
-      if (quic_process(&serial_configurator_port, &serial_quic, buffer, buffer_size)) {
-        break;
-      }
-      if (serial_read_bytes(&serial_quic_port, &data, 1) == 1) {
-        buffer[buffer_size++] = data;
-        lastReadTime = time_micros();
-      } else {
-        int diff = time_micros() - lastReadTime;
-        if (diff > 1000 * 1000 * 5) {
-          quic_send_str(&serial_quic, QUIC_CMD_INVALID, QUIC_FLAG_ERROR, "EOF");
-          break;
-        }
-      }
+      break;
     }
-    break;
-  }
+    }
   }
 
-  // this will block and handle all usb traffic while active
-  looptime_reset();
+  // reset looptime for serial passthrough when not armed
+  looptime_auto_reset();
 }
 #pragma GCC diagnostic pop
